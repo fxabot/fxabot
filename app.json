@@ -1,0 +1,8 @@
+{
+  "name": "FxaBot",
+  "buildpacks": [
+    {
+      "url": "https://github.com/emk/heroku-buildpack-rust#578d630"
+    }
+  ]
+}
