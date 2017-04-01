@@ -2,7 +2,7 @@
 
 set -e
 
-config=$(cat <<'EOF'
+config=$(cat <<EOF
 [server]
 host = "127.0.0.1"
 port = $PORT
@@ -14,4 +14,4 @@ token = "$GITHUB_ACCESS_TOKEN"
 EOF
 )
 
-echo $config > heroku.toml
+echo "$config" > heroku.toml
