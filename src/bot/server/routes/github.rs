@@ -287,7 +287,7 @@ struct Hex<'a>(&'a [u8]);
 impl<'a> fmt::LowerHex for Hex<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for byte in self.0 {
-            fmt::LowerHex::fmt(byte, f)?
+            write!(f, "{:02x}", byte)?;
         }
         Ok(())
     }
