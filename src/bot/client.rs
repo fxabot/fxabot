@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use futures::{Future, IntoFuture};
 use hyper::client::{Client as HyperClient, Request};
 use hyper::{self, Method, StatusCode};

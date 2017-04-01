@@ -1,5 +1,5 @@
 use futures::{Future, IntoFuture};
-use hyper::server::{Request, Response};
+use hyper::server::{Response};
 
 use super::HandlerFuture;
 
