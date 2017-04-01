@@ -14,6 +14,8 @@ fn main() {
         }
     };
 
+    println!("boop: using config file {:?}", arg);
+
     match run(arg) {
         Ok(_) => {},
         Err(e) => {
