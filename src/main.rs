@@ -1,10 +1,10 @@
 extern crate fxabot;
-extern crate pretty_env_logger;
+extern crate env_logger;
 
 use fxabot::{FxaBot, Config};
 
 fn main() {
-    pretty_env_logger::init().unwrap();
+    env_logger::init().unwrap();
 
     let arg = match ::std::env::args().nth(1) {
         Some(s) => s,
