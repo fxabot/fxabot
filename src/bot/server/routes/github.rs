@@ -65,16 +65,18 @@ impl GithubHandler {
 
     fn verify_signature(&self, body: &[u8], sig: &XHubSignature) -> Result<(), RouteError> {
         if let Some(secret) = self.config.github_webhook_secret() {
+            trace!("verifying signature: {:?}", sig.0);
             let digest = hmac_sha1(secret.as_bytes(), body);
+            let digest = format!("{:x}", Hex(&digest));
             let prefix = b"sha1=";
             let len = digest.len() + prefix.len();
-            let sig = sig.0.as_bytes();
-            if sig.len() != len {
+            let sig_ascii = sig.0.as_bytes();
+            if sig_ascii.len() != len {
                 debug!("signature not long enough");
                 Err(RouteError::Client)
-            } else if !(b"sha1=" == &sig[..prefix.len()] && digest == &sig[prefix.len()..]) {
-                error!("signature does not match, ours = {:x}, theirs = {:x}",
-                       Hex(&digest), Hex(&sig[prefix.len()..]));
+            } else if !(b"sha1=" == &sig_ascii[..prefix.len()] && digest.as_bytes() == &sig_ascii[prefix.len()..]) {
+                error!("signature does not match, ours = {:?}, theirs = {:?}",
+                       digest, sig);
                 Err(RouteError::Client)
             } else {
                 trace!("valid signature");
