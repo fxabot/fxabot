@@ -1,6 +1,7 @@
 use std::fmt;
 
 use futures::{Future, IntoFuture, Stream};
+use hmacsha1::hmac_sha1;
 use hyper::{self, StatusCode};
 use hyper::header::{Header, Raw};
 use hyper::server::{Request, Response};
@@ -29,6 +30,7 @@ impl GithubHandler {
             Some(event) => *event,
             None => return Ok(Response::new().with_status(hyper::BadRequest)).into_future().boxed(),
         };
+        let sig = req.headers().get::<XHubSignature>().map(|h| h.clone());
 
         let body = Vec::new();
         req.body().fold(body, move |mut body, chunk| {
@@ -38,7 +40,16 @@ impl GithubHandler {
             error!("request body error: {}", err);
             RouteError::Client
         }).and_then(move |body| {
-            // TODO: verify body against HMAC
+            if self.config.github_webhook_secret().is_some() {
+                if let Some(sig) = sig {
+                    self.verify_signature(&body, &sig)?;
+                } else {
+                    debug!("no X-Hub-Signature, rejecting");
+                    return Err(RouteError::Client);
+                }
+            } else {
+                warn!("no webhook secret configured, unknown event origin");
+            }
 
             match event {
                 XGithubEvent::IssueComment => self.handle_issue_comment(body)
@@ -50,6 +61,29 @@ impl GithubHandler {
             };
             Ok(Response::new().with_status(status))
         }).boxed()
+    }
+
+    fn verify_signature(&self, body: &[u8], sig: &XHubSignature) -> Result<(), RouteError> {
+        if let Some(secret) = self.config.github_webhook_secret() {
+            let digest = hmac_sha1(secret.as_bytes(), body);
+            let prefix = b"sha1=";
+            let len = digest.len() + prefix.len();
+            let sig = sig.0.as_bytes();
+            if sig.len() != len {
+                debug!("signature not long enough");
+                Err(RouteError::Client)
+            } else if !(b"sha1=" == &sig[..prefix.len()] && digest == &sig[prefix.len()..]) {
+                error!("signature does not match, ours = {:x}, theirs = {:x}",
+                       Hex(&digest), Hex(&sig[prefix.len()..]));
+                Err(RouteError::Client)
+            } else {
+                trace!("valid signature");
+                Ok(())
+            }
+        } else {
+            warn!("I don't have a webhook secret, I can't verify this event!");
+            Ok(())
+        }
     }
 
     fn handle_issue_comment(self, bytes: Vec<u8>) -> Result<Response, RouteError> {
@@ -69,9 +103,19 @@ impl GithubHandler {
                 job.comment(
                     event.repository.full_name,
                     event.issue.number,
-                    format!("@{} pong", event.sender.login)
+                    format!("@{} pong :ping_pong:", event.sender.login)
                 );
                 self.work.schedule(job).map_err(|_| RouteError::Server)?;
+            },
+            Cmd::Deploy => {
+                let mut job = Job::new();
+                job.comment(
+                    event.repository.full_name,
+                    event.issue.number,
+                    format!("@{} I'd love to... but I don't have that chip installed yet. :sob:", event.sender.login)
+                );
+                self.work.schedule(job).map_err(|_| RouteError::Server)?;
+
             },
             Cmd::DidNotUnderstand => {
                 // authorized user, but bad command
@@ -79,7 +123,7 @@ impl GithubHandler {
                 job.comment(
                     event.repository.full_name,
                     event.issue.number,
-                    format!("@{} I'm sorry, I didn't understand you. Bzzt.", event.sender.login)
+                    format!("@{} I'm sorry, I didn't understand you. Bzzt. :zap:", event.sender.login)
                 );
                 self.work.schedule(job).map_err(|_| RouteError::Server)?;
             }
@@ -115,6 +159,26 @@ impl Header for XGithubEvent {
     }
 }
 
+#[derive(Debug, Clone)]
+struct XHubSignature(String);
+
+impl Header for XHubSignature {
+    fn header_name() -> &'static str {
+        "X-Hub-Signature"
+    }
+
+    fn parse_header(raw: &Raw) -> hyper::Result<XHubSignature> {
+        match raw.one() {
+            Some(bytes) => Ok(XHubSignature(::std::str::from_utf8(bytes)?.to_string())),
+            _ => Err(hyper::Error::Header),
+        }
+    }
+
+    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct CommentEvent {
     action: CommentAction,
@@ -124,7 +188,7 @@ struct CommentEvent {
     sender: User,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, PartialEq, Deserialize)]
 enum CommentAction {
     #[serde(rename = "created")]
     Created,
@@ -159,12 +223,16 @@ struct User {
 #[derive(Debug)]
 enum Cmd {
     Ping,
+    Deploy,
     DidNotUnderstand,
     Ignore,
 }
 
 impl Cmd {
     fn parse(config: &Config, event: &CommentEvent) -> Cmd {
+        if event.action != CommentAction::Created {
+            return Cmd::Ignore;
+        }
         let my_name = config.github_name();
         if my_name.is_empty() {
             return Cmd::Ignore;
@@ -205,7 +273,19 @@ impl Cmd {
 
         match words.next() {
             Some("ping") => Cmd::Ping,
+            Some("deploy") => Cmd::Deploy,
             _ => Cmd::DidNotUnderstand,
         }
+    }
+}
+
+struct Hex<'a>(&'a [u8]);
+
+impl<'a> fmt::LowerHex for Hex<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for byte in self.0 {
+            fmt::LowerHex::fmt(byte, f)?
+        }
+        Ok(())
     }
 }

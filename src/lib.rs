@@ -1,4 +1,5 @@
 extern crate futures;
+extern crate hmacsha1;
 extern crate hyper;
 extern crate hyper_tls;
 #[macro_use] extern crate log;

@@ -26,6 +26,7 @@ struct Github {
     authorized: Vec<String>,
     api: Option<String>,
     token: Option<String>,
+    webhook_secret: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -69,6 +70,11 @@ impl Config {
     pub fn github_token(&self) -> Option<&str> {
         self.0.github.as_ref()
             .and_then(|g| g.token.as_ref().map(AsRef::as_ref))
+    }
+
+    pub fn github_webhook_secret(&self) -> Option<&str> {
+        self.0.github.as_ref()
+            .and_then(|g| g.webhook_secret.as_ref().map(AsRef::as_ref))
     }
 }
 
