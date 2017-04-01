@@ -1,15 +1,8 @@
-use futures::{Future, IntoFuture};
-use hyper::server::{Response};
-
-use super::HandlerFuture;
-
 pub use self::github::handle as github;
+pub use self::ping::ping;
 
 mod github;
-
-pub fn ping() -> HandlerFuture {
-    Ok(Response::new()).into_future().boxed()
-}
+mod ping;
 
 #[derive(Debug)]
 enum RouteError {
