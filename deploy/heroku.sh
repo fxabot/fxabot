@@ -11,6 +11,7 @@ port = $PORT
 username = "fxabot"
 authorized = ["seanmonstar"]
 token = "$GITHUB_ACCESS_TOKEN"
+webhook_secret = "$GITHUB_WEBHOOK_SECRET"
 EOF
 )
 
