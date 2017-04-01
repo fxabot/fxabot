@@ -68,6 +68,7 @@ impl GithubHandler {
             trace!("verifying signature: {:?}", sig.0);
             let digest = hmac_sha1(secret.as_bytes(), body);
             let digest = format!("{:x}", Hex(&digest));
+            trace!("expected signature: {:?}", digest);
             let prefix = b"sha1=";
             let len = digest.len() + prefix.len();
             let sig_ascii = sig.0.as_bytes();
